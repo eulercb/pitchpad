@@ -1,0 +1,59 @@
+name: PR Preview
+
+# Deploy a live preview of each pull request to GitHub Pages, then tear it down
+# when the PR closes. Previews are published to gh-pages under
+# pr-preview/pr-<number>/, i.e. https://pitchpad.zen.dev.br/pr-preview/pr-N/.
+#
+# Note: this uses `pull_request` (not `pull_request_target`) for safety, so it
+# only has write access for PRs from branches in THIS repo. Previews for PRs
+# opened from forks are skipped by design — running untrusted PR code with a
+# write-scoped token is the classic Pages-preview footgun.
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, closed]
+
+# pr-preview-action pushes the preview to gh-pages (contents) and comments the
+# preview URL on the PR (pull-requests).
+permissions:
+  contents: write
+  pull-requests: write
+
+# One preview build per PR; a new push supersedes the previous build.
+concurrency:
+  group: pr-preview-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    name: Build and deploy preview
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Skip the build entirely on the "closed" event — that run only cleans up
+      # the preview directory, no artifacts required.
+      - uses: actions/setup-node@v4
+        if: github.event.action != 'closed'
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        if: github.event.action != 'closed'
+        run: npm ci
+
+      - name: Build preview
+        if: github.event.action != 'closed'
+        run: npm run build
+        env:
+          # Previews live in a subdirectory, so use a relative base and skip the
+          # service worker (see the deployment note in vite.config.ts).
+          VITE_BASE_PATH: ./
+          VITE_DISABLE_PWA: 'true'
+
+      - name: Deploy / update / remove preview
+        uses: rossjrw/pr-preview-action@v1
+        with:
+          source-dir: ./dist/
+          preview-branch: gh-pages
+          umbrella-dir: pr-preview

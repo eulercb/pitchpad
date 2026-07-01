@@ -1,0 +1,34 @@
+# Keep dependencies (and the workflow actions above) current with low PR noise.
+# Updates are grouped so a week's worth of bumps arrives as a couple of PRs
+# rather than one per package.
+version: 2
+updates:
+  # npm packages
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    groups:
+      # All dev-tooling bumps (Vite, Vitest, TS, types, tailwind…) in one PR.
+      dev-dependencies:
+        dependency-type: development
+      # Runtime minor/patch bumps in one PR; majors (e.g. React 18→19) still get
+      # their own PR so they can be reviewed on their own.
+      production-dependencies:
+        dependency-type: production
+        update-types:
+          - minor
+          - patch
+
+  # GitHub Actions used by the workflows in .github/workflows
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      github-actions:
+        patterns:
+          - "*"

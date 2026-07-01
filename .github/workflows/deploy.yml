@@ -1,0 +1,54 @@
+name: Deploy to GitHub Pages
+
+# Publish the production site on every merge to main. We deploy to the
+# `gh-pages` branch (not the newer Actions "artifact" model) on purpose: it lets
+# the live site and per-PR previews coexist on the same Pages site — previews
+# live under pr-preview/ and this deploy is told not to touch them.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: # allow manual re-deploys from the Actions tab
+
+# We push the built site to the gh-pages branch, so we need write access.
+permissions:
+  contents: write
+
+# Never let two Pages-writing runs race on the gh-pages branch. Don't cancel an
+# in-flight deploy midway — let it finish, then run the next.
+concurrency:
+  group: github-pages-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build and deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Gate the deploy on a green test run so main never ships broken.
+      - name: Test
+        run: npm test
+
+      - name: Build (production, custom-domain root)
+        run: npm run build
+        env:
+          VITE_BASE_PATH: / # served at the custom domain root (public/CNAME)
+
+      - name: Deploy to gh-pages
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          folder: dist
+          branch: gh-pages
+          # Keep active PR previews alive when we redeploy the main site.
+          clean-exclude: pr-preview/
+          # Non-force push so a concurrent preview deploy isn't clobbered.
+          force: false
