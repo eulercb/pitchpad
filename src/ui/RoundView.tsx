@@ -37,7 +37,8 @@ export function RoundView() {
   const g = useGame()
   const settings = useStore((s) => s.settings)
   const [echoPulse, setEchoPulse] = useState(0)
-  const prevPhase = useRef<GamePhase>(g.phase)
+  // null so the very first note (the round-1 reference) still triggers an echo
+  const prevPhase = useRef<GamePhase | null>(null)
 
   // Resonance echo in the center: bloom each time a note sounds.
   useEffect(() => {
@@ -80,8 +81,18 @@ export function RoundView() {
   const offset =
     g.lastAnswer != null && g.target != null ? semitoneOffsetLabel(g.lastAnswer, g.target) : ''
 
+  const announce =
+    g.phase === 'FEEDBACK_CORRECT' && g.target != null
+      ? `Correct. That was ${noteName(g.target)}.`
+      : g.phase === 'FEEDBACK_WRONG' && g.target != null && g.lastAnswer != null
+        ? `Not quite. You played ${noteName(g.lastAnswer)}. The note was ${noteName(g.target)}.`
+        : ''
+
   return (
     <section className="flex flex-1 flex-col items-center justify-center gap-7 px-6">
+      <p className="sr-only" role="status" aria-live="assertive">
+        {announce}
+      </p>
       <div key={`${g.phase}-${g.roundIndex}`} className="anim-settle-in text-center">
         <p className="font-display text-[34px] leading-none" style={{ color: wordColor }}>
           {word}
