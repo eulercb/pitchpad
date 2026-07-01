@@ -1,18 +1,28 @@
 @import 'tailwindcss';
 
 /*
-  PitchPad theme — placeholder tokens (Phase 0).
-  The final palette + type system land in Phase 3 from the design exploration.
-  For now: a genuinely *warm* dark ground (not #000), one amber accent.
+  PitchPad theme — "Lampglow" locked palette (see docs/DESIGN.md).
+  A warm plum-brown practice-room ground (R>G>B, never neutral) under one brass
+  lamplight accent. The full type system + keyframes land in Phase 3.
 */
 @theme {
-  --color-ground: #17120e;
-  --color-surface: #221a14;
-  --color-accent: #e6a94b;
-  --color-correct: #7fb069;
-  --color-wrong: #d9694f;
-  --color-ink: #f3ece2;
-  --color-muted: #9a8b7a;
+  --color-ground: #1c1410;
+  --color-surface: #332417;
+  --color-surface-inset: #150f0b;
+  --color-hairline: #4a3826;
+  --color-accent: #e8a54b;
+  --color-accent-dim: #b57f38;
+  --color-correct: #7fb08a;
+  --color-wrong: #d46a5b;
+  --color-text: #f2e4ce;
+  --color-muted: #a88c6a;
+
+  /* keyboard-specific tones */
+  --color-key-white: #ebdcc2;
+  --color-key-white-press: #d4c3a6;
+  --color-key-black: #241a12;
+  --color-key-black-press: #160f09;
+  --color-key-bevel: #f7ecd8;
 }
 
 @layer base {
@@ -24,7 +34,7 @@
   body {
     margin: 0;
     background-color: var(--color-ground);
-    color: var(--color-ink);
+    color: var(--color-text);
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
     overscroll-behavior: none;
