@@ -1,0 +1,346 @@
+@import 'tailwindcss';
+
+/*
+  PitchPad — "Lampglow" design system (see docs/DESIGN.md).
+  A warm plum-brown practice-room ground (R>G>B, never neutral) under one brass
+  lamplight accent. Fraunces for identity (pushed into its soft/wonk axes),
+  Public Sans for all chrome. Boldness is spent entirely on the resonance bloom.
+*/
+@theme {
+  --color-ground: #1c1410;
+  --color-surface: #332417;
+  --color-surface-inset: #150f0b;
+  --color-hairline: #4a3826;
+  --color-accent: #e8a54b;
+  --color-accent-dim: #b57f38;
+  --color-correct: #7fb08a;
+  --color-wrong: #d46a5b;
+  --color-text: #f2e4ce;
+  --color-muted: #a88c6a;
+
+  --color-key-white: #ebdcc2;
+  --color-key-white-press: #d4c3a6;
+  --color-key-black: #241a12;
+  --color-key-black-press: #160f09;
+  --color-key-bevel: #f7ecd8;
+
+  --font-sans: 'Public Sans Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Fraunces Variable', 'Iowan Old Style', Georgia, serif;
+
+  --radius-panel: 1rem;
+
+  --ease-settle: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-bloom: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  html {
+    color-scheme: dark;
+  }
+  body {
+    margin: 0;
+    background-color: var(--color-ground);
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    overscroll-behavior: none;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+  #root {
+    /* respect the notch / gesture areas on Android */
+    padding: env(safe-area-inset-top) env(safe-area-inset-right)
+      env(safe-area-inset-bottom) env(safe-area-inset-left);
+    box-sizing: border-box;
+  }
+  button {
+    font: inherit;
+    color: inherit;
+  }
+}
+
+@layer components {
+  /* Identity type: Fraunces with the soft/wonk axes on and weight held light. */
+  .font-display {
+    font-family: var(--font-display);
+    font-variation-settings: 'opsz' 96, 'wght' 460, 'SOFT' 100, 'WONK' 1;
+    letter-spacing: -0.02em;
+    font-weight: 460;
+  }
+  .font-display-num {
+    font-family: var(--font-display);
+    font-variation-settings: 'opsz' 72, 'wght' 500, 'SOFT' 100, 'WONK' 1;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+  }
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+  /* Uppercase utility label. */
+  .label-caps {
+    font-family: var(--font-sans);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  /* A raised panel: 2-stop lift + the mandatory 1px inner top hairline. */
+  .panel {
+    background-color: var(--color-surface);
+    box-shadow: inset 0 1px 0 0 var(--color-hairline);
+  }
+}
+
+/* ── Resonance bloom (the signature). Scale + opacity only. ──────────────── */
+.bloom {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  pointer-events: none;
+  border-radius: 9999px;
+  background: radial-gradient(
+    circle,
+    color-mix(in oklab, var(--bloom-color, var(--color-accent)) 85%, transparent) 0%,
+    color-mix(in oklab, var(--bloom-color, var(--color-accent)) 38%, transparent) 35%,
+    transparent 70%
+  );
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.3);
+  will-change: transform, opacity;
+}
+.bloom[data-bloom='strike'] {
+  animation: bloom-strike 700ms var(--ease-bloom) forwards;
+}
+.bloom[data-bloom='hold'] {
+  opacity: 0.85;
+  transform: translate(-50%, -50%) scale(1);
+  animation: bloom-breathe 1250ms ease-in-out infinite;
+}
+@keyframes bloom-strike {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.3);
+  }
+  30% {
+    opacity: 0.9;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.15);
+  }
+}
+@keyframes bloom-breathe {
+  0%,
+  100% {
+    opacity: 0.68;
+    transform: translate(-50%, -50%) scale(0.96);
+  }
+  50% {
+    opacity: 0.95;
+    transform: translate(-50%, -50%) scale(1.06);
+  }
+}
+
+/* ── Physical-settle motion ─────────────────────────────────────────────── */
+.anim-settle-in {
+  animation: settle-in 320ms var(--ease-settle) both;
+}
+@keyframes settle-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.anim-bounce {
+  animation: resonance-bounce 420ms var(--ease-settle);
+}
+@keyframes resonance-bounce {
+  0% {
+    transform: translateY(0);
+  }
+  35% {
+    transform: translateY(-6px);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+.anim-shake {
+  animation: wrong-shake 120ms ease-in-out 2;
+}
+@keyframes wrong-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-3px);
+  }
+  75% {
+    transform: translateX(3px);
+  }
+}
+.anim-tick {
+  animation: tick-up 320ms var(--ease-settle);
+}
+@keyframes tick-up {
+  0% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(-4px);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+.listen-dot {
+  animation: listen-pulse 1600ms ease-in-out infinite;
+}
+@keyframes listen-pulse {
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+}
+.ring-draw {
+  animation: ring-draw 280ms var(--ease-settle) forwards;
+}
+@keyframes ring-draw {
+  from {
+    stroke-dashoffset: var(--circ);
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* ── Bottom sheet ────────────────────────────────────────────────────────── */
+.sheet-enter {
+  animation: sheet-rise 320ms var(--ease-settle) both;
+}
+@keyframes sheet-rise {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+.scrim-enter {
+  animation: fade-in 200ms ease-out both;
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Range input, themed to the brass accent. */
+.pp-range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--color-surface-inset);
+  outline: none;
+}
+.pp-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 9999px;
+  background: var(--color-accent);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+}
+.pp-range::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 9999px;
+  background: var(--color-accent);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+}
+.pp-range:focus-visible::-webkit-slider-thumb {
+  outline: 2px solid var(--color-text);
+  outline-offset: 2px;
+}
+
+/* Visible keyboard focus everywhere (quality floor). */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/*
+  Secondary "lamplit paper" light theme — a warm oat ground under the same brass
+  lamplight, deliberately NOT the #F4F1EA cream default. Dark is the primary.
+*/
+html[data-theme='light'] {
+  --color-ground: #e7dcc6;
+  --color-surface: #f3ead9;
+  --color-surface-inset: #d6c8ac;
+  --color-hairline: #c9b591;
+  --color-accent: #c07d1e;
+  --color-accent-dim: #9c6414;
+  --color-correct: #4f8a63;
+  --color-wrong: #b64f3b;
+  --color-text: #2a2018;
+  --color-muted: #7a6a50;
+  --color-key-white: #fbf5e9;
+  --color-key-white-press: #eaddc5;
+  --color-key-black: #2a2018;
+  --color-key-black-press: #171009;
+  --color-key-bevel: #ffffff;
+}
+html[data-theme='light'] body {
+  background-color: var(--color-ground);
+  color: var(--color-text);
+}
+
+/* Respect reduced motion: no loops, no springs — just resolved states. */
+@media (prefers-reduced-motion: reduce) {
+  .bloom[data-bloom='strike'] {
+    animation: none;
+    opacity: 0.55;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  .bloom[data-bloom='hold'] {
+    animation: none;
+  }
+  .anim-settle-in,
+  .anim-bounce,
+  .anim-shake,
+  .anim-tick,
+  .ring-draw,
+  .sheet-enter,
+  .scrim-enter {
+    animation: none;
+  }
+  .listen-dot {
+    animation: none;
+    opacity: 0.7;
+  }
+}
