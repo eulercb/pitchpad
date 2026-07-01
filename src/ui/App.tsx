@@ -11,6 +11,7 @@ import { Stats } from './Stats'
 import { StartPanel, PausedPanel } from './StartPanel'
 import { SessionSummary } from './SessionSummary'
 import { SettingsSheet } from './SettingsSheet'
+import { UpdateToast } from './UpdateToast'
 import type { GamePhase, GameState } from '../engine/types'
 
 const ACTIVE: ReadonlySet<GamePhase> = new Set<GamePhase>([
@@ -45,7 +46,14 @@ export function App() {
   }, [settings.theme])
 
   // Never connected (or fully disconnected outside a session) → the connect gate.
-  if (g.phase === 'DISCONNECTED') return <ConnectScreen />
+  if (g.phase === 'DISCONNECTED') {
+    return (
+      <>
+        <ConnectScreen />
+        <UpdateToast />
+      </>
+    )
+  }
 
   let main
   if (g.phase === 'READY') main = <StartPanel />
@@ -77,6 +85,7 @@ export function App() {
       )}
 
       {settingsOpen && <SettingsSheet onClose={() => setSettingsOpen(false)} />}
+      <UpdateToast />
     </div>
   )
 }

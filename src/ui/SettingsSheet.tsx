@@ -1,6 +1,7 @@
 import { useEffect, type ReactNode } from 'react'
 import { useStore } from '../store'
 import { useMidi } from '../hooks/useMidi'
+import { usePwa } from '../pwa'
 import { noteName } from '../engine/notes'
 import { CloseGlyph } from './icons'
 import type { Settings, SoundSource } from '../engine/types'
@@ -10,6 +11,8 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
   const update = useStore((s) => s.updateSettings)
   const resetStats = useStore((s) => s.resetStats)
   const bestStreak = useStore((s) => s.bestStreak)
+  const canInstall = usePwa((s) => s.canInstall)
+  const install = usePwa((s) => s.install)
   const m = useMidi()
 
   useEffect(() => {
@@ -176,6 +179,21 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
               onChange={(v) => set({ theme: v })}
             />
           </Section>
+
+          {canInstall && (
+            <Section title="App">
+              <Row label="Install PitchPad" hint="Add to your home screen, launch full-screen">
+                <button
+                  type="button"
+                  onClick={() => void install()}
+                  className="rounded-full px-4 py-2 text-sm font-semibold"
+                  style={{ background: 'var(--color-accent)', color: 'var(--color-surface-inset)' }}
+                >
+                  Install
+                </button>
+              </Row>
+            </Section>
+          )}
 
           <Section title="Stats">
             <Row label="Best streak" hint={`Your longest run of first-try answers`}>

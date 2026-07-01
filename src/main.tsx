@@ -6,6 +6,7 @@ import '@fontsource-variable/fraunces/full.css'
 import '@fontsource-variable/public-sans/index.css'
 import './index.css'
 import './runtime' // wire the engine singletons (side effects)
+import { initPwa } from './pwa'
 import { App } from './ui/App'
 
 createRoot(document.getElementById('root')!).render(
@@ -13,3 +14,5 @@ createRoot(document.getElementById('root')!).render(
     <App />
   </StrictMode>,
 )
+
+initPwa()
