@@ -1,0 +1,32 @@
+@import 'tailwindcss';
+
+/*
+  PitchPad theme — placeholder tokens (Phase 0).
+  The final palette + type system land in Phase 3 from the design exploration.
+  For now: a genuinely *warm* dark ground (not #000), one amber accent.
+*/
+@theme {
+  --color-ground: #17120e;
+  --color-surface: #221a14;
+  --color-accent: #e6a94b;
+  --color-correct: #7fb069;
+  --color-wrong: #d9694f;
+  --color-ink: #f3ece2;
+  --color-muted: #9a8b7a;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    margin: 0;
+    background-color: var(--color-ground);
+    color: var(--color-ink);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    overscroll-behavior: none;
+  }
+}
