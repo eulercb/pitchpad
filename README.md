@@ -75,3 +75,43 @@ Connect the piano over **USB-C (OTG)** to a class-compliant USB-MIDI device.
 
 If your piano doesn't sound incoming MIDI, turn on **in-app sound** in Settings
 (or check the piano's Local Control / MIDI routing).
+
+## Deployment & CI
+
+Four GitHub workflows (in [`.github/`](.github)) automate testing and hosting:
+
+| Workflow | Trigger | What it does |
+| --- | --- | --- |
+| **CI** (`ci.yml`) | every PR + push to `main` | type-check → `vitest` → production build |
+| **Deploy** (`deploy.yml`) | push to `main` | tests, then builds and publishes the site |
+| **PR Preview** (`pr-preview.yml`) | PR opened/updated/closed | deploys a live preview, removes it on close |
+| **Dependabot** (`dependabot.yml`) | weekly | grouped npm + GitHub Actions updates |
+
+The site is served from a custom domain (`pitchpad.zen.dev.br`, set via
+[`public/CNAME`](public/CNAME)). Both the live site and PR previews are
+published to the **`gh-pages` branch** so they can coexist:
+
+- production → `https://pitchpad.zen.dev.br/`
+- preview for PR #N → `https://pitchpad.zen.dev.br/pr-preview/pr-N/`
+
+The main deploy uses `clean-exclude: pr-preview/`, so redeploying `main` never
+wipes an open PR's preview. Vite's `base` is env-driven (see the note in
+[`vite.config.ts`](vite.config.ts)): production builds at `/`, previews build
+with a **relative** base (`VITE_BASE_PATH=./`) and the service worker off
+(`VITE_DISABLE_PWA=true`) so assets resolve from the preview subdirectory.
+
+> Previews run on `pull_request` (not `pull_request_target`), so previews are
+> only built for PRs from branches in this repo — PRs from forks are skipped to
+> avoid running untrusted code with a write token.
+
+### One-time setup (repo settings)
+
+1. **Actions → General → Workflow permissions** → select **Read and write
+   permissions** (lets the deploy push to `gh-pages`).
+2. Merge to `main` once (or run **Deploy** from the Actions tab). This creates
+   the `gh-pages` branch.
+3. **Settings → Pages → Build and deployment** → Source: **Deploy from a
+   branch**, Branch: **`gh-pages`** / **`/ (root)`**.
+4. **Settings → Pages → Custom domain** → enter `pitchpad.zen.dev.br` and, once
+   DNS verifies, tick **Enforce HTTPS**. Add a DNS `CNAME` record pointing
+   `pitchpad.zen.dev.br` → `eulercb.github.io` at your DNS provider.
