@@ -28,11 +28,11 @@ jobs:
     name: Build and deploy preview
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Skip the build entirely on the "closed" event — that run only cleans up
       # the preview directory, no artifacts required.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         if: github.event.action != 'closed'
         with:
           node-version: 20
