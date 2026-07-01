@@ -176,6 +176,40 @@ describe('GameEngine', () => {
     }
   })
 
+  it('breaks the streak when a round is skipped with no attempt', () => {
+    const s = mkSettings({ referenceTone: false, noteDurationMs: 50, roundsPerSession: 5 })
+    const g = new GameEngine(new SpySound(), s, { rng: mulberry32(3) })
+    g.notifyConnected()
+    g.startSession()
+    reachAwaiting(s)
+    g.handleNoteOn(g.getSnapshot().target!) // round 1: first-try correct
+    expect(g.getSnapshot().streak).toBe(1)
+    g.nextRound()
+    expect(g.getSnapshot().streak).toBe(1) // finalize keeps a first-try win
+
+    reachAwaiting(s)
+    g.nextRound() // round 2: skip with no attempt
+    expect(g.getSnapshot().streak).toBe(0) // streak broken
+  })
+
+  it('re-arms the auto-advance after resuming from a pause during FEEDBACK_CORRECT', () => {
+    const s = mkSettings({ referenceTone: false, noteDurationMs: 50, roundsPerSession: 5 })
+    const g = new GameEngine(new SpySound(), s, { rng: mulberry32(9) })
+    g.notifyConnected()
+    g.startSession()
+    reachAwaiting(s)
+    g.handleNoteOn(g.getSnapshot().target!)
+    expect(g.getSnapshot().phase).toBe('FEEDBACK_CORRECT')
+
+    g.notifyDisconnected() // device lost mid-win → the advance timer is cancelled
+    expect(g.getSnapshot().phase).toBe('PAUSED')
+    g.notifyConnected() // back → restore the win + re-arm the advance
+    expect(g.getSnapshot().phase).toBe('FEEDBACK_CORRECT')
+
+    vi.advanceTimersByTime(1300) // past CORRECT_ADVANCE_MS
+    expect(g.getSnapshot().roundIndex).toBe(1) // advanced on its own
+  })
+
   it('panics (allNotesOff) on start, advance, and dispose — no stuck notes', () => {
     const spy = new SpySound()
     const s = mkSettings({ referenceTone: false, noteDurationMs: 50 })

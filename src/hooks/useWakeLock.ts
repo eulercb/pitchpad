@@ -12,7 +12,14 @@ export function useWakeLock(active: boolean): void {
 
     const acquire = async () => {
       try {
-        sentinel = await navigator.wakeLock.request('screen')
+        const lock = await navigator.wakeLock.request('screen')
+        // The effect may have been torn down while the request was in flight —
+        // if so, release immediately instead of leaking a held lock.
+        if (released) {
+          void lock.release().catch(() => {})
+          return
+        }
+        sentinel = lock
         sentinel.addEventListener('release', () => {
           sentinel = null
         })

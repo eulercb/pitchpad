@@ -132,6 +132,12 @@ export class MidiEngine extends Observable<MidiState> {
     const output = this.pickPort(outputPorts, this.state.selectedOutputName, this.preferredOutputName)
 
     this.attachInput(input)
+    // If the output is changing while notes are live, release them on the OLD
+    // port first — otherwise its Note Offs would go to the new device and the
+    // old one would be left holding a stuck note.
+    if (this.currentOutput && output !== this.currentOutput && this.outstanding.size > 0) {
+      this.silenceOutput(this.currentOutput)
+    }
     this.currentOutput = output
 
     const hadConnection =
@@ -256,6 +262,28 @@ export class MidiEngine extends Observable<MidiState> {
       this.sendRaw([CC | ch, ALL_NOTES_OFF, 0])
       this.sendRaw([CC | ch, ALL_SOUND_OFF, 0])
     }
+  }
+
+  /**
+   * Release every live note on a specific port (used when the selected output
+   * changes mid-note). sendRaw() always targets the *current* output, so this
+   * writes to the passed port directly and clears the outstanding tracking.
+   */
+  private silenceOutput(port: MIDIOutput): void {
+    try {
+      for (const [note, { channel, timer }] of this.outstanding) {
+        clearTimeout(timer)
+        port.send([NOTE_OFF | channel, note, 0])
+      }
+      for (let ch = 0; ch < 16; ch++) {
+        port.send([CC | ch, ALL_NOTES_OFF, 0])
+        port.send([CC | ch, ALL_SOUND_OFF, 0])
+      }
+    } catch (err) {
+      // the old port may be vanishing during a hot-unplug
+      if (import.meta.env.DEV) console.warn('[midi] silenceOutput failed', err)
+    }
+    this.outstanding.clear()
   }
 
   // ── Mock transport (dev only) ─────────────────────────────────────────────

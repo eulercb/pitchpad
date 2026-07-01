@@ -30,6 +30,10 @@ export function sanitizeSettings(input: Partial<Settings> | undefined | null): S
   if (min > max) [min, max] = [max, min]
   s.rangeMin = Math.max(0, Math.min(127, min))
   s.rangeMax = Math.max(0, Math.min(127, max))
+  const rn = Math.round(Number(s.referenceNote))
+  s.referenceNote = Number.isFinite(rn)
+    ? Math.max(0, Math.min(127, rn))
+    : DEFAULT_SETTINGS.referenceNote
   s.noteDurationMs = Math.max(200, Math.min(4000, Math.round(s.noteDurationMs)))
   s.outputVelocity = Math.max(1, Math.min(127, Math.round(s.outputVelocity)))
   s.outputChannel = Math.max(0, Math.min(15, Math.round(s.outputChannel)))

@@ -5,7 +5,7 @@ import { game, sound } from '../runtime'
 import { noteName, semitoneOffsetLabel } from '../engine/notes'
 import { Bloom } from './Bloom'
 import { FeedbackRing, type RingState } from './FeedbackRing'
-import { ReplayGlyph } from './icons'
+import { ReplayGlyph, CheckGlyph, CrossGlyph } from './icons'
 import { vibrate, HAPTIC_CORRECT, HAPTIC_WRONG } from './haptics'
 import type { GamePhase } from '../engine/types'
 
@@ -52,22 +52,24 @@ export function RoundView() {
     prevPhase.current = phase
   }, [g.phase])
 
-  // Haptics + optional audio cue on feedback (fires once per entering the state).
-  const fedback = useRef<GamePhase | null>(null)
+  // Haptics + optional audio cue on feedback. Keyed on the attempt count, not
+  // just the phase, so a *second* wrong answer in the same round also fires.
+  const fedbackAttempt = useRef(0)
   useEffect(() => {
-    if (g.phase === fedback.current) return
-    if (g.phase === 'FEEDBACK_CORRECT') {
-      fedback.current = g.phase
-      if (settings.haptics) vibrate(HAPTIC_CORRECT)
-      if (settings.audioCue) sound.cue('correct')
-    } else if (g.phase === 'FEEDBACK_WRONG') {
-      fedback.current = g.phase
-      if (settings.haptics) vibrate(HAPTIC_WRONG)
-      if (settings.audioCue) sound.cue('wrong')
-    } else {
-      fedback.current = null
+    const inFeedback = g.phase === 'FEEDBACK_CORRECT' || g.phase === 'FEEDBACK_WRONG'
+    if (inFeedback && g.attemptsThisRound !== fedbackAttempt.current) {
+      fedbackAttempt.current = g.attemptsThisRound
+      if (g.phase === 'FEEDBACK_CORRECT') {
+        if (settings.haptics) vibrate(HAPTIC_CORRECT)
+        if (settings.audioCue) sound.cue('correct')
+      } else {
+        if (settings.haptics) vibrate(HAPTIC_WRONG)
+        if (settings.audioCue) sound.cue('wrong')
+      }
+    } else if (!inFeedback) {
+      fedbackAttempt.current = 0
     }
-  }, [g.phase, settings.haptics, settings.audioCue])
+  }, [g.phase, g.attemptsThisRound, settings.haptics, settings.audioCue])
 
   const ringState = ringStateFor(g.phase)
   const word = wordFor(g.phase)
@@ -118,12 +120,32 @@ export function RoundView() {
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
           <ReplayButton disabled={!canReplay} onReplay={() => game.replay()} />
         </div>
+        {/* spec-mandated shape channel: a check / X badge on the ring (§5) */}
+        {(g.phase === 'FEEDBACK_CORRECT' || g.phase === 'FEEDBACK_WRONG') && (
+          <span
+            key={`glyph-${g.phase}-${g.attemptsThisRound}`}
+            aria-hidden
+            className={`absolute left-1/2 top-0 z-30 grid h-11 w-11 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full ${
+              g.phase === 'FEEDBACK_WRONG' ? 'anim-shake' : 'anim-settle-in'
+            }`}
+            style={{
+              background: 'var(--color-surface)',
+              color:
+                g.phase === 'FEEDBACK_CORRECT' ? 'var(--color-correct)' : 'var(--color-wrong)',
+              boxShadow: `inset 0 1px 0 var(--color-hairline), 0 0 0 2px ${
+                g.phase === 'FEEDBACK_CORRECT' ? 'var(--color-correct)' : 'var(--color-wrong)'
+              }`,
+            }}
+          >
+            {g.phase === 'FEEDBACK_CORRECT' ? <CheckGlyph size={22} /> : <CrossGlyph size={20} />}
+          </span>
+        )}
       </div>
 
       {/* wrong-answer teaching cue: how far off, and which direction */}
       <div className="flex h-12 items-center justify-center">
         {g.phase === 'FEEDBACK_WRONG' && g.lastAnswer != null && (
-          <div className="anim-shake text-center">
+          <div className="text-center">
             <span className="font-display-num text-2xl" style={{ color: 'var(--color-wrong)' }}>
               {offset || `${noteName(g.lastAnswer)}`}
             </span>

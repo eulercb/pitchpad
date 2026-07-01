@@ -119,6 +119,10 @@ export class GameEngine extends Observable<GameState> {
       resume === 'AWAITING_ANSWER'
     ) {
       this.playSequence()
+    } else if (resume === 'FEEDBACK_CORRECT') {
+      // restore the win state AND re-arm the auto-advance the pause cancelled
+      this.setState({ phase: resume })
+      this.schedule(() => this.nextRound(), CORRECT_ADVANCE_MS)
     } else {
       this.setState({ phase: resume ?? 'AWAITING_ANSWER' })
     }
@@ -277,10 +281,16 @@ export class GameEngine extends Observable<GameState> {
       correct: tally.correct + (result.correct && result.firstTry ? 1 : 0),
     }
 
+    // Streak = consecutive first-try-correct. A first-try win already bumped the
+    // streak in judge(); any other finalization — a skip with no attempt, or a
+    // round resolved after a miss — must break it.
+    const keptStreak = result.correct && result.firstTry ? this.state.streak : 0
+
     this.setState({
       results: [...this.state.results, result],
       lastResult: result,
       perNote,
+      streak: keptStreak,
     })
   }
 
