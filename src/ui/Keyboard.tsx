@@ -1,4 +1,4 @@
-import { useMemo, useState, type PointerEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react'
 import { noteName } from '../engine/notes'
 import { buildKeyboardLayout } from './keyboardLayout'
 import { Bloom } from './Bloom'
@@ -22,12 +22,20 @@ interface KeyboardProps {
 const WHITE_H = 156
 const BLACK_H = 98
 const CORRECT = 'var(--color-correct)'
+const TAP_SLOP = 10
 
 // The chunky, dimensional octave. A co-equal craft object: used both as the
 // tap-to-answer fallback and to reveal the correct key on a miss (§6).
 export function Keyboard({ enabledNotes, min, max, answered, reveal, interactive, showLabels, onPress }: KeyboardProps) {
   const layout = useMemo(() => buildKeyboardLayout(min, max), [min, max])
   const [pressed, setPressed] = useState<ReadonlySet<number>>(() => new Set())
+  const pointers = useRef(new Map<number, { midi: number; x: number; y: number }>())
+
+  useEffect(() => {
+    // A MIDI answer or a new prompt can disable keys before pointer-up arrives.
+    pointers.current.clear()
+    setPressed(new Set())
+  }, [interactive, min, max])
 
   const press = (midi: number) => {
     if (!interactive || (enabledNotes && !enabledNotes.includes(midi))) return
@@ -43,10 +51,24 @@ export function Keyboard({ enabledNotes, min, max, answered, reveal, interactive
     })
 
   const down = (midi: number) => (e: PointerEvent) => {
-    e.preventDefault()
-    press(midi)
+    if (!interactive || e.button !== 0 || (enabledNotes && !enabledNotes.includes(midi))) return
+    pointers.current.set(e.pointerId, { midi, x: e.clientX, y: e.clientY })
+    setPressed((p) => new Set(p).add(midi))
   }
-  const up = (midi: number) => () => release(midi)
+  const cancel = (midi: number) => (e: PointerEvent) => {
+    pointers.current.delete(e.pointerId)
+    release(midi)
+  }
+  const move = (midi: number) => (e: PointerEvent) => {
+    const start = pointers.current.get(e.pointerId)
+    if (start && Math.hypot(e.clientX - start.x, e.clientY - start.y) > TAP_SLOP) cancel(midi)(e)
+  }
+  const up = (midi: number) => (e: PointerEvent) => {
+    const start = pointers.current.get(e.pointerId)
+    // Let native horizontal panning finish without turning the gesture into a guess.
+    if (start?.midi === midi && Math.hypot(e.clientX - start.x, e.clientY - start.y) <= TAP_SLOP) press(midi)
+    cancel(midi)(e)
+  }
 
   const keyState = (midi: number): string => {
     if (reveal?.midi === midi) return reveal.kind === 'correct' ? 'reveal-correct' : 'reveal'
@@ -55,25 +77,21 @@ export function Keyboard({ enabledNotes, min, max, answered, reveal, interactive
   }
 
   return (
-    <div className="keyboard panel overflow-x-auto rounded-t-[var(--radius-panel)] px-2 pb-2 pt-3">
-      <div
-        className="relative"
-        style={{ height: WHITE_H, minWidth: layout.whites.length * 38 }}
-        role="group"
-        aria-label="On-screen piano keyboard"
-      >
-        {/* reveal glow + note name, floated above the keyboard */}
-        {reveal && (
-          <>
-            <span
-              className="pointer-events-none absolute -top-9 z-20 -translate-x-1/2 font-display text-lg"
-              style={{
-                left: `${layout.centers[reveal.midi] ?? 50}%`,
-                color: reveal.kind === 'correct' ? CORRECT : 'var(--color-accent)',
-              }}
-            >
-              {noteName(reveal.midi)}
-            </span>
+    <div className="keyboard panel shrink-0 rounded-t-[var(--radius-panel)]">
+      <div className="flex h-8 items-center justify-center font-display text-lg">
+        {reveal && <span style={{ color: reveal.kind === 'correct' ? CORRECT : 'var(--color-accent)' }}>
+          {noteName(reveal.midi)}
+        </span>}
+      </div>
+      <div className="overflow-x-auto px-2 pb-2" data-keyboard-scroll>
+        <div
+          className="relative"
+          style={{ height: WHITE_H, minWidth: layout.whites.length * 38 }}
+          role="group"
+          aria-label="On-screen piano keyboard"
+        >
+          {/* The feedback glow follows its key; the name stays outside the scroller. */}
+          {reveal && (
             <span
               className="pointer-events-none absolute z-0"
               style={{ left: `${layout.centers[reveal.midi] ?? 50}%`, top: 14 }}
@@ -85,74 +103,76 @@ export function Keyboard({ enabledNotes, min, max, answered, reveal, interactive
                 pulse={reveal.midi}
               />
             </span>
-          </>
-        )}
+          )}
 
-        {/* white keys */}
-        <div className="flex h-full gap-[2px]">
-          {layout.whites.map((midi) => {
-            const state = keyState(midi)
-            const isPressed = pressed.has(midi) || state === 'answered'
+          {/* white keys */}
+          <div className="flex h-full gap-[2px]">
+            {layout.whites.map((midi) => {
+              const state = keyState(midi)
+              const isPressed = pressed.has(midi) || state === 'answered'
+              return (
+                <button
+                  key={midi}
+                  type="button"
+                  aria-label={noteName(midi)}
+                  disabled={!interactive || (enabledNotes && !enabledNotes.includes(midi))}
+                  data-state={state}
+                  onClick={(e) => { if (e.detail === 0) { press(midi); release(midi) } }}
+                  onPointerDown={down(midi)}
+                  onPointerMove={move(midi)}
+                  onPointerUp={up(midi)}
+                  onPointerLeave={cancel(midi)}
+                  onPointerCancel={cancel(midi)}
+                  className="relative z-10 flex flex-1 items-end justify-center rounded-b-[10px] pb-2 transition-transform duration-200 ease-[var(--ease-settle)]"
+                  style={{
+                    height: WHITE_H,
+                    touchAction: 'pan-x',
+                    background: isPressed ? 'var(--color-key-white-press)' : 'var(--color-key-white)',
+                    transform: isPressed ? 'translateY(5px)' : 'none',
+                    boxShadow: keyShadowWhite(state, isPressed),
+                  }}
+                >
+                  {showLabels && (
+                    <span className="label-caps text-[10px] text-[color:var(--color-surface-inset)] opacity-70">
+                      {noteName(midi)}
+                    </span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+
+          {/* black keys */}
+          {layout.blacks.map((b) => {
+            const state = keyState(b.midi)
+            const isPressed = pressed.has(b.midi) || state === 'answered'
             return (
               <button
-                key={midi}
+                key={b.midi}
                 type="button"
-                aria-label={noteName(midi)}
-                disabled={!interactive || (enabledNotes && !enabledNotes.includes(midi))}
+                aria-label={noteName(b.midi)}
+                disabled={!interactive || (enabledNotes && !enabledNotes.includes(b.midi))}
                 data-state={state}
-                onClick={(e) => { if (e.detail === 0) { press(midi); release(midi) } }}
-                onPointerDown={down(midi)}
-                onPointerUp={up(midi)}
-                onPointerLeave={up(midi)}
-                onPointerCancel={up(midi)}
-                className="relative z-10 flex flex-1 items-end justify-center rounded-b-[10px] pb-2 transition-transform duration-200 ease-[var(--ease-settle)]"
+                onClick={(e) => { if (e.detail === 0) { press(b.midi); release(b.midi) } }}
+                onPointerDown={down(b.midi)}
+                onPointerMove={move(b.midi)}
+                onPointerUp={up(b.midi)}
+                onPointerLeave={cancel(b.midi)}
+                onPointerCancel={cancel(b.midi)}
+                className="absolute top-0 z-30 rounded-b-[6px] transition-transform duration-200 ease-[var(--ease-settle)]"
                 style={{
-                  height: WHITE_H,
-                  touchAction: 'none',
-                  background: isPressed ? 'var(--color-key-white-press)' : 'var(--color-key-white)',
-                  transform: isPressed ? 'translateY(5px)' : 'none',
-                  boxShadow: keyShadowWhite(state, isPressed),
+                  left: `${b.leftPercent}%`,
+                  width: `${b.widthPercent}%`,
+                  height: BLACK_H,
+                  touchAction: 'pan-x',
+                  background: isPressed ? 'var(--color-key-black-press)' : 'var(--color-key-black)',
+                  transform: isPressed ? 'translateY(4px)' : 'none',
+                  boxShadow: keyShadowBlack(state, isPressed),
                 }}
-              >
-                {showLabels && (
-                  <span className="label-caps text-[10px] text-[color:var(--color-surface-inset)] opacity-70">
-                    {noteName(midi)}
-                  </span>
-                )}
-              </button>
+              />
             )
           })}
         </div>
-
-        {/* black keys */}
-        {layout.blacks.map((b) => {
-          const state = keyState(b.midi)
-          const isPressed = pressed.has(b.midi) || state === 'answered'
-          return (
-            <button
-              key={b.midi}
-              type="button"
-              aria-label={noteName(b.midi)}
-              disabled={!interactive || (enabledNotes && !enabledNotes.includes(b.midi))}
-              data-state={state}
-              onClick={(e) => { if (e.detail === 0) { press(b.midi); release(b.midi) } }}
-              onPointerDown={down(b.midi)}
-              onPointerUp={up(b.midi)}
-              onPointerLeave={up(b.midi)}
-              onPointerCancel={up(b.midi)}
-              className="absolute top-0 z-30 rounded-b-[6px] transition-transform duration-200 ease-[var(--ease-settle)]"
-              style={{
-                left: `${b.leftPercent}%`,
-                width: `${b.widthPercent}%`,
-                height: BLACK_H,
-                touchAction: 'none',
-                background: isPressed ? 'var(--color-key-black-press)' : 'var(--color-key-black)',
-                transform: isPressed ? 'translateY(4px)' : 'none',
-                boxShadow: keyShadowBlack(state, isPressed),
-              }}
-            />
-          )
-        })}
       </div>
     </div>
   )
