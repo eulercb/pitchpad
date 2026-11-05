@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useMidi } from '../hooks/useMidi'
-import { connect } from '../runtime'
+import { connect, connectScreen } from '../runtime'
 import { Bloom } from './Bloom'
 import type { ConnectionStatus } from '../engine/types'
 
@@ -9,8 +9,8 @@ function help(status: ConnectionStatus, message: string | null): { title: string
   switch (status) {
     case 'UNSUPPORTED':
       return {
-        title: 'Chrome on Android needed',
-        body: 'PitchPad talks to your piano over Web MIDI, which this browser doesn’t support. Open it in Chrome on an Android phone.',
+        title: 'Play on screen instead',
+        body: 'PitchPad talks to your piano over Web MIDI, which this browser doesn’t support. You can still train with the on-screen keyboard and built-in sound.',
       }
     case 'PERMISSION_DENIED':
       return {
@@ -77,8 +77,12 @@ export function ConnectScreen() {
         </button>
       )}
 
+      <button type="button" onClick={() => void connectScreen()} disabled={busy}
+        className="rounded-full border border-[color:var(--color-accent)] px-8 py-4 font-semibold">
+        Play on screen
+      </button>
       <p className="max-w-xs text-xs leading-relaxed text-[color:var(--color-muted)] opacity-80">
-        Works offline once loaded. Your piano is the only thing you need online.
+        No piano needed for on-screen play. Sound and practice work offline once loaded.
       </p>
     </main>
   )

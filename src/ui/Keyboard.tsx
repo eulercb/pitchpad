@@ -9,6 +9,7 @@ export interface RevealTarget {
 }
 
 interface KeyboardProps {
+  enabledNotes?: number[]
   min: number
   max: number
   answered: number | null
@@ -24,12 +25,12 @@ const CORRECT = 'var(--color-correct)'
 
 // The chunky, dimensional octave. A co-equal craft object: used both as the
 // tap-to-answer fallback and to reveal the correct key on a miss (§6).
-export function Keyboard({ min, max, answered, reveal, interactive, showLabels, onPress }: KeyboardProps) {
+export function Keyboard({ enabledNotes, min, max, answered, reveal, interactive, showLabels, onPress }: KeyboardProps) {
   const layout = useMemo(() => buildKeyboardLayout(min, max), [min, max])
   const [pressed, setPressed] = useState<ReadonlySet<number>>(() => new Set())
 
   const press = (midi: number) => {
-    if (!interactive) return
+    if (!interactive || (enabledNotes && !enabledNotes.includes(midi))) return
     setPressed((p) => new Set(p).add(midi))
     onPress(midi)
   }
@@ -54,10 +55,10 @@ export function Keyboard({ min, max, answered, reveal, interactive, showLabels, 
   }
 
   return (
-    <div className="keyboard panel rounded-t-[var(--radius-panel)] px-2 pb-2 pt-3">
+    <div className="keyboard panel overflow-x-auto rounded-t-[var(--radius-panel)] px-2 pb-2 pt-3">
       <div
         className="relative"
-        style={{ height: WHITE_H }}
+        style={{ height: WHITE_H, minWidth: layout.whites.length * 38 }}
         role="group"
         aria-label="On-screen piano keyboard"
       >
@@ -97,8 +98,9 @@ export function Keyboard({ min, max, answered, reveal, interactive, showLabels, 
                 key={midi}
                 type="button"
                 aria-label={noteName(midi)}
-                aria-disabled={!interactive}
+                disabled={!interactive || (enabledNotes && !enabledNotes.includes(midi))}
                 data-state={state}
+                onClick={(e) => { if (e.detail === 0) { press(midi); release(midi) } }}
                 onPointerDown={down(midi)}
                 onPointerUp={up(midi)}
                 onPointerLeave={up(midi)}
@@ -131,8 +133,9 @@ export function Keyboard({ min, max, answered, reveal, interactive, showLabels, 
               key={b.midi}
               type="button"
               aria-label={noteName(b.midi)}
-              aria-disabled={!interactive}
+              disabled={!interactive || (enabledNotes && !enabledNotes.includes(b.midi))}
               data-state={state}
+              onClick={(e) => { if (e.detail === 0) { press(b.midi); release(b.midi) } }}
               onPointerDown={down(b.midi)}
               onPointerUp={up(b.midi)}
               onPointerLeave={up(b.midi)}

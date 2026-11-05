@@ -72,12 +72,13 @@ export function App() {
       {active && (
         <>
           <Keyboard
-            min={settings.rangeMin}
-            max={settings.rangeMax}
+            min={Math.min(...g.pool)}
+            max={Math.max(...g.pool)}
+            enabledNotes={g.pool}
             answered={g.phase === 'FEEDBACK_WRONG' ? g.lastAnswer : null}
             reveal={revealFor(g)}
             interactive={answerInteractive}
-            showLabels={settings.showNoteLabels}
+            showLabels={g.mode === 'learning' || (g.mode === 'practice' && settings.showNoteLabels)}
             onPress={answerByTap}
           />
           <Stats />

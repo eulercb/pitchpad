@@ -92,6 +92,9 @@ export function RoundView() {
 
   return (
     <section className="flex flex-1 flex-col items-center justify-center gap-7 px-6">
+      {g.mode !== 'practice' && <p className="label-caps text-xs text-[color:var(--color-muted)]">
+        {g.mode === 'learning' ? `Learning · step ${g.level} · ${g.pool.length} notes` : `Endless challenge · level ${g.level}`}
+      </p>}
       <p className="sr-only" role="status" aria-live="assertive">
         {announce}
       </p>

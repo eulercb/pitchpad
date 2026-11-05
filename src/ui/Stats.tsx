@@ -18,23 +18,27 @@ function Stat({ label, value, accent }: { label: string; value: string | number;
 
 export function Stats() {
   const g = useGame()
+  const challenge = g.mode === 'challenge'
   const roundNum = Math.min(g.roundIndex + 1, g.totalRounds)
   const nextLabel =
     g.phase === 'FEEDBACK_CORRECT' || g.phase === 'FEEDBACK_WRONG' ? 'Next' : 'Skip'
 
   return (
     <footer className="panel flex items-center justify-between rounded-t-[var(--radius-panel)] px-6 py-3">
-      <Stat label="Round" value={`${roundNum}/${g.totalRounds}`} />
+      <Stat label={challenge ? "Level" : "Round"} value={challenge ? g.level : `${roundNum}/${g.totalRounds}`} />
       <Stat label="Streak" value={g.streak} accent={g.streak > 0} />
       <Stat label="Score" value={g.score} />
       <button
         type="button"
+        disabled={challenge && g.phase !== 'FEEDBACK_CORRECT'}
         onClick={() => game.nextRound()}
-        className="rounded-full px-4 py-2 text-sm font-semibold text-[color:var(--color-text)] transition-colors"
+        className="rounded-full disabled:opacity-40 px-4 py-2 text-sm font-semibold text-[color:var(--color-text)] transition-colors"
         style={{ background: 'color-mix(in oklab, var(--color-accent) 16%, transparent)' }}
       >
-        {nextLabel}
+        {challenge ? 'Next' : nextLabel}
       </button>
+      <button type="button" onClick={() => game.endSession()} aria-label="End session"
+        className="px-2 py-2 text-sm text-[color:var(--color-muted)]">End</button>
     </footer>
   )
 }

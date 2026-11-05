@@ -1,13 +1,15 @@
 # PitchPad
 
-An ear-training PWA for your own MIDI piano. Hear a note played on your
+An ear-training PWA for your MIDI piano or on-screen keyboard. Hear a note played on your
 instrument, find it, and play it back — with immediate visual + haptic feedback,
 scoring, and streaks. Mobile-first, portrait, installable, and fully offline
 after the first load.
 
-The piano is both the **sound source** (Web MIDI out) and the **answer input**
-(Web MIDI in). Built for **Android Chrome** (Web MIDI isn't available on
-iOS/Safari).
+Choose **Play on screen** to train without hardware, using the offline built-in synth
+and touch, mouse, or keyboard activation of the piano keys. No MIDI permission is requested.
+Alternatively, connect a piano as both the **sound source** (Web MIDI out) and
+**answer input** (Web MIDI in). Hardware MIDI requires a compatible browser such
+as Android Chrome; on-screen play also works in browsers without Web MIDI.
 
 ## How it plays
 
@@ -19,6 +21,30 @@ iOS/Safari).
 
 Everything runs on sensible defaults (white keys C4–B4, 10 rounds, reference on)
 — it's fully playable before you open Settings.
+
+## Practice modes
+
+- **Learning** starts with C4, D4 and E4 and a C4 reference. It weights new and
+  weak notes more heavily while continuing to review earlier notes. Three
+  consecutive unaided first-try answers on **every** unlocked note introduce one
+  new note. A mistake resets that note's mastery streak, so it needs reinforcement
+  before another unlock. The curriculum adds the remaining white keys, then black
+  keys, then repeats in the next octave (C4–B5). Progress is saved after each
+  completed round, including when ending a session early.
+- **Practice** keeps the configurable range, reference, labels and session length.
+  Misses reveal the answer and allow retries. Revealed/retried answers never earn
+  first-try credit.
+- **Endless Challenge** ends immediately on the first wrong answer. It starts with
+  C4, D4 and E4, adds a note every three correct answers up to two chromatic
+  octaves, and shortens the tone from 1000 ms by 75 ms per level to a 200 ms floor.
+  The reference disappears after 12 points. Replays are allowed; skips and reveals
+  are disabled. The best score is saved as the run progresses, even if you quit.
+
+Learning history and records stay in this browser's local storage; there is no
+account or server sync. Existing settings and stats are preserved on upgrade.
+**Reset stats** in Settings also clears learning progress and the challenge record.
+A lost MIDI device pauses the session; **Continue on screen** resumes it with
+built-in sound. Use **Change instrument** from the start screen to return to MIDI.
 
 ## Stack
 

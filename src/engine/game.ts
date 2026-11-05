@@ -8,7 +8,8 @@
 //   any-active ─deviceLost→ PAUSED ─deviceBack→ (resume)
 import { Observable } from './observable'
 import { range } from './notes'
-import type { GamePhase, GameState, MidiNote, RoundResult, Settings, Sound } from './types'
+import { CURRICULUM, emptyLearning, learningWeight, recordLearning } from './learning'
+import type { GameMode, LearningHistory, GamePhase, GameState, MidiNote, RoundResult, Settings, Sound } from './types'
 
 const REF_TARGET_GAP_MS = 260 // silence between the reference anchor and the target
 const POST_TARGET_MS = 140 // brief settle after the target before we start listening
@@ -31,6 +32,8 @@ const ANSWERING_PHASES: ReadonlySet<GamePhase> = new Set<GamePhase>([
 ])
 
 export interface GameEngineOptions {
+  learning?: LearningHistory
+  onLearning?: (history: LearningHistory) => void
   bestStreak?: number
   /** Injectable RNG for deterministic tests. Defaults to Math.random. */
   rng?: () => number
@@ -39,6 +42,9 @@ export interface GameEngineOptions {
 function initialState(bestStreak: number): GameState {
   return {
     phase: 'DISCONNECTED',
+    mode: 'practice',
+    pool: [],
+    level: 1,
     roundIndex: 0,
     totalRounds: 0,
     target: null,
@@ -57,6 +63,8 @@ function initialState(bestStreak: number): GameState {
 }
 
 export class GameEngine extends Observable<GameState> {
+  private learning: LearningHistory
+  private onLearning?: (history: LearningHistory) => void
   private settings: Settings
   private readonly rng: () => number
   private timers: ReturnType<typeof setTimeout>[] = []
@@ -70,13 +78,18 @@ export class GameEngine extends Observable<GameState> {
   ) {
     super(initialState(opts.bestStreak ?? 0))
     this.settings = settings
+    this.learning = opts.learning ?? emptyLearning()
+    this.onLearning = opts.onLearning
     this.rng = opts.rng ?? Math.random
+  }
+
+  updateLearning(history: LearningHistory): void {
+    this.learning = history
   }
 
   // ── external inputs ────────────────────────────────────────────────────
   updateSettings(settings: Settings): void {
-    // Applied immediately for judging/pool; sequence-timing reads at play time,
-    // so in-flight prompts finish on their old timing and the next round adopts new.
+    // Timing updates apply on the next playback; the pool stays fixed until the next round.
     this.settings = settings
   }
 
@@ -129,14 +142,16 @@ export class GameEngine extends Observable<GameState> {
   }
 
   // ── session / round lifecycle ────────────────────────────────────────────
-  startSession(): void {
+  startSession(mode: GameMode = this.state.mode): void {
+    if (this.state.phase !== 'READY' && this.state.phase !== 'SESSION_SUMMARY') return
     this.clearTimers()
     this.sound.allNotesOff()
     this.pending = null
     this.prevTarget = null
     this.setState({
+      mode,
       roundIndex: 0,
-      totalRounds: this.settings.roundsPerSession,
+      totalRounds: mode === 'challenge' ? 0 : this.settings.roundsPerSession,
       score: 0,
       streak: 0,
       results: [],
@@ -147,12 +162,16 @@ export class GameEngine extends Observable<GameState> {
   }
 
   private beginRound(): void {
+    const pool = this.roundPool()
+    const level = this.state.mode === 'learning' ? this.learning.unlocked - 2 :
+      this.state.mode === 'challenge' ? 1 + Math.floor(this.state.score / 3) : 1
+    this.setState({ pool, level })
     const target = this.pickTarget()
     this.prevTarget = target
     this.pending = null
     this.setState({
       target,
-      reference: this.settings.referenceTone ? this.settings.referenceNote : null,
+      reference: this.roundReference(),
       lastAnswer: null,
       revealed: false,
       attemptsThisRound: 0,
@@ -163,15 +182,17 @@ export class GameEngine extends Observable<GameState> {
   /** (Re)play reference (if enabled) then target, then open for answers. Unlimited, unpenalized. */
   replay(): void {
     if (this.state.target == null) return
-    if (!ACTIVE_PHASES.has(this.state.phase)) return
+    if (!ANSWERING_PHASES.has(this.state.phase)) return
     this.playSequence()
   }
 
   private playSequence(): void {
     this.clearTimers()
     this.sound.allNotesOff()
-    const { noteDurationMs, outputVelocity, outputChannel, referenceTone, referenceNote } =
-      this.settings
+    const { outputVelocity, outputChannel } = this.settings
+    const noteDurationMs = this.state.mode === 'challenge'
+      ? Math.max(200, 1000 - Math.floor(this.state.score / 3) * 75) : this.settings.noteDurationMs
+    const referenceNote = this.state.reference
     const target = this.state.target
     if (target == null) return
 
@@ -185,7 +206,7 @@ export class GameEngine extends Observable<GameState> {
       this.schedule(() => this.setState({ phase: 'AWAITING_ANSWER' }), noteDurationMs + POST_TARGET_MS)
     }
 
-    if (referenceTone) {
+    if (referenceNote != null) {
       this.setState({ phase: 'PLAYING_REFERENCE' })
       this.sound.playNote(referenceNote, {
         velocity: outputVelocity,
@@ -205,7 +226,7 @@ export class GameEngine extends Observable<GameState> {
     this.clearTimers() // stop any pending phase transitions
     const attempts = this.state.attemptsThisRound + 1
     const correct = note === target // exact MIDI (single-octave pool); octave-agnostic is parked
-    const firstTry = correct && attempts === 1
+    const firstTry = correct && attempts === 1 && !this.state.revealed
 
     if (correct) {
       this.pending = { target, answered: note, correct: true, firstTry, attempts, revealed: this.state.revealed }
@@ -232,11 +253,17 @@ export class GameEngine extends Observable<GameState> {
         revealed: true,
         streak: 0,
       })
+      if (this.state.mode === 'challenge') {
+        this.sound.allNotesOff()
+        this.finalizeRound()
+        this.setState({ phase: 'SESSION_SUMMARY' })
+      }
     }
   }
 
   /** Explicitly reveal the correct key (also happens automatically on a wrong answer). */
   revealAnswer(): void {
+    if (this.state.mode === 'challenge') return
     if (this.state.phase === 'AWAITING_ANSWER' || this.state.phase === 'FEEDBACK_WRONG') {
       this.setState({ revealed: true })
     }
@@ -244,13 +271,14 @@ export class GameEngine extends Observable<GameState> {
 
   /** Advance to the next round (or the session summary). Also used as Skip. */
   nextRound(): void {
-    if (this.state.phase === 'SESSION_SUMMARY' || this.state.phase === 'DISCONNECTED') return
+    if (!ACTIVE_PHASES.has(this.state.phase)) return
+    if (this.state.mode === 'challenge' && this.state.phase !== 'FEEDBACK_CORRECT') return
     this.clearTimers()
     this.sound.allNotesOff()
     this.finalizeRound()
 
     const nextIndex = this.state.roundIndex + 1
-    if (nextIndex >= this.state.totalRounds) {
+    if (this.state.mode !== 'challenge' && nextIndex >= this.state.totalRounds) {
       this.setState({ phase: 'SESSION_SUMMARY' })
     } else {
       this.setState({ roundIndex: nextIndex })
@@ -273,6 +301,10 @@ export class GameEngine extends Observable<GameState> {
         revealed: this.state.revealed,
       }
     this.pending = null
+    if (this.state.mode === 'learning') {
+      this.learning = recordLearning(this.learning, result)
+      this.onLearning?.(this.learning)
+    }
 
     const perNote = { ...this.state.perNote }
     const tally = perNote[target] ?? { attempts: 0, correct: 0 }
@@ -297,6 +329,7 @@ export class GameEngine extends Observable<GameState> {
   endSession(): void {
     this.clearTimers()
     this.sound.allNotesOff()
+    if (ACTIVE_PHASES.has(this.state.phase) || this.state.phase === 'PAUSED') this.finalizeRound()
     this.pending = null
     this.setState({ phase: this.state.phase === 'DISCONNECTED' ? 'DISCONNECTED' : 'READY' })
   }
@@ -308,18 +341,34 @@ export class GameEngine extends Observable<GameState> {
   }
 
   // ── helpers ──────────────────────────────────────────────────────────────
-  private pickTarget(): MidiNote {
-    const pool = range(this.settings.rangeMin, this.settings.rangeMax, {
-      whiteOnly: this.settings.whiteOnly,
-    })
-    if (pool.length === 0) return this.settings.rangeMin
-    if (pool.length === 1) return pool[0]
-    let pick = pool[Math.floor(this.rng() * pool.length)]
-    let guard = 0
-    while (pick === this.prevTarget && guard++ < 24) {
-      pick = pool[Math.floor(this.rng() * pool.length)]
+  private roundPool(): MidiNote[] {
+    if (this.state.mode === 'practice') {
+      const pool = range(this.settings.rangeMin, this.settings.rangeMax, { whiteOnly: this.settings.whiteOnly })
+      return pool.length ? pool : [this.settings.rangeMin]
     }
-    return pick
+    const size = this.state.mode === 'learning' ? this.learning.unlocked :
+      Math.min(CURRICULUM.length, 3 + Math.floor(this.state.score / 3))
+    return CURRICULUM.slice(0, size)
+  }
+
+  private roundReference(): MidiNote | null {
+    if (this.state.mode === 'learning') return 60
+    if (this.state.mode === 'challenge') return this.state.score < 12 ? 60 : null
+    return this.settings.referenceTone ? this.settings.referenceNote : null
+  }
+
+  private pickTarget(): MidiNote {
+    const pool = this.state.pool
+    if (pool.length === 0) return this.settings.rangeMin
+    const candidates = pool.length > 1 ? pool.filter((note) => note !== this.prevTarget) : pool
+    const weights = candidates.map((note) => this.state.mode === 'learning'
+      ? learningWeight(this.learning, note) : 1)
+    let roll = this.rng() * weights.reduce((sum, weight) => sum + weight, 0)
+    for (let i = 0; i < candidates.length; i++) {
+      roll -= weights[i]
+      if (roll < 0) return candidates[i]
+    }
+    return candidates[candidates.length - 1]
   }
 
   private schedule(fn: () => void, ms: number): void {

@@ -8,6 +8,8 @@ import type { Settings, SoundSource } from '../engine/types'
 
 export function SettingsSheet({ onClose }: { onClose: () => void }) {
   const settings = useStore((s) => s.settings)
+  const screen = useStore((s) => s.inputMode === 'screen')
+  const challengeBest = useStore((s) => s.challengeBest)
   const update = useStore((s) => s.updateSettings)
   const resetStats = useStore((s) => s.resetStats)
   const bestStreak = useStore((s) => s.bestStreak)
@@ -55,7 +57,7 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
 
         <div className="flex flex-col gap-6 px-5 pt-2">
           <Section title="Sound">
-            <Segmented<SoundSource>
+            {screen ? <Hint>On-screen play uses built-in sound. Your piano sound preference is kept for next time.</Hint> : <Segmented<SoundSource>
               label="Sound source"
               value={settings.soundSource}
               options={[
@@ -64,7 +66,7 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
                 { value: 'both', label: 'Both' },
               ]}
               onChange={(v) => set({ soundSource: v })}
-            />
+            />}
             <Hint>
               No sound from your piano? Switch on in-app sound, or check your piano’s Local
               Control / MIDI settings.
@@ -102,6 +104,7 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
           </Section>
 
           <Section title="Notes">
+            <Hint>Range, white keys, reference and labels customize Practice. Learning and Endless use their own progression; rounds per session also applies to Learning.</Hint>
             <NoteStepper
               label="Lowest note"
               value={settings.rangeMin}
@@ -199,6 +202,10 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
             <Row label="Best streak" hint={`Your longest run of first-try answers`}>
               <span className="font-display-num text-xl">{bestStreak}</span>
             </Row>
+            <Row label="Endless best score" hint="Most correct answers before the first mistake">
+              <span className="font-display-num text-xl">{challengeBest}</span>
+            </Row>
+            <Hint>Reset clears lifetime stats, your endless record and all learning progress on this device.</Hint>
             <button
               type="button"
               onClick={resetStats}

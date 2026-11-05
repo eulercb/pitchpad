@@ -148,6 +148,12 @@ class SynthSound implements Sound {
 export class AppSound implements Sound {
   private synth = new SynthSound()
   private source: SoundSource = 'piano'
+  private screenMode = false
+
+  setScreenMode(enabled: boolean): void {
+    this.allNotesOff()
+    this.screenMode = enabled
+  }
 
   constructor(private engine: MidiEngine) {}
 
@@ -161,10 +167,10 @@ export class AppSound implements Sound {
   }
 
   private get usesPiano(): boolean {
-    return this.source === 'piano' || this.source === 'both'
+    return !this.screenMode && (this.source === 'piano' || this.source === 'both')
   }
   private get usesSynth(): boolean {
-    return this.source === 'in-app' || this.source === 'both'
+    return this.screenMode || this.source === 'in-app' || this.source === 'both'
   }
 
   playNote(note: number, opts: PlayOptions = {}): void {
