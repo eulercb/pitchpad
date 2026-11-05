@@ -1,4 +1,5 @@
 import { useMidi } from '../hooks/useMidi'
+import { useStore } from '../store'
 import { GearGlyph } from './icons'
 import type { MidiState } from '../engine/types'
 
@@ -21,7 +22,9 @@ function present(m: MidiState): { color: string; label: string; pulse: boolean }
 
 export function ConnectionBar({ onOpenSettings }: { onOpenSettings: () => void }) {
   const m = useMidi()
-  const { color, label, pulse } = present(m)
+  const screen = useStore((s) => s.inputMode === 'screen')
+  const { color, label, pulse } = screen
+    ? { color: 'var(--color-correct)', label: 'On-screen piano', pulse: false } : present(m)
 
   return (
     <header className="panel flex items-center gap-3 rounded-b-[var(--radius-panel)] px-4 py-3">

@@ -98,3 +98,44 @@ describe('store persistence', () => {
     expect(reloaded.getState().bestStreak).toBe(5)
   })
 })
+
+describe('mode persistence', () => {
+  beforeEach(() => localStorage.clear())
+
+  it('migrates existing v1 storage without losing stats or settings', async () => {
+    localStorage.setItem(KEY, JSON.stringify({ schemaVersion: 1, settings: DEFAULT_SETTINGS,
+      bestStreak: 8, lifetimeStats: { sessionsPlayed: 2, roundsPlayed: 20, firstTryCorrect: 12, perNote: {} } }))
+    const store = await freshStore()
+    expect(store.getState().challengeBest).toBe(0)
+    expect(store.getState().learning).toEqual({ unlocked: 3, perNote: {} })
+    expect(store.getState().bestStreak).toBe(8)
+    expect(store.getState().lifetimeStats.roundsPlayed).toBe(20)
+  })
+
+  it('retains learning history and the highest challenge score across reloads', async () => {
+    let store = await freshStore()
+    store.getState().setLearning({ unlocked: 4, perNote: { 60: { attempts: 5, correct: 4, streak: 2 } } })
+    store.getState().recordChallengeScore(12)
+    store.getState().recordChallengeScore(3)
+    store.getState().setInputMode('screen')
+    store = await freshStore()
+    expect(store.getState().challengeBest).toBe(12)
+    expect(store.getState().learning.perNote[60]).toEqual({ attempts: 5, correct: 4, streak: 2 })
+    expect(store.getState().learning.unlocked).toBe(4)
+    expect(store.getState().inputMode).toBe('piano') // audio always needs a fresh user gesture
+    store.getState().resetStats()
+    store = await freshStore()
+    expect(store.getState().challengeBest).toBe(0)
+    expect(store.getState().learning.unlocked).toBe(3)
+    expect(store.getState().learning.perNote).toEqual({})
+  })
+
+  it('repairs malformed saved learning and challenge data', async () => {
+    localStorage.setItem(KEY, JSON.stringify({ schemaVersion: 1, settings: DEFAULT_SETTINGS,
+      challengeBest: -50, learning: { unlocked: 999, perNote: { 60: { attempts: -4, correct: 100, streak: 500 } } } }))
+    const store = await freshStore()
+    expect(store.getState().challengeBest).toBe(0)
+    expect(store.getState().learning.unlocked).toBe(24)
+    expect(store.getState().learning.perNote[60]).toEqual({ attempts: 0, correct: 0, streak: 0 })
+  })
+})

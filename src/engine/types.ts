@@ -58,6 +58,17 @@ export interface Sound {
 /** Where the target/reference tone comes from. */
 export type SoundSource = 'piano' | 'in-app' | 'both'
 
+export type GameMode = 'practice' | 'learning' | 'challenge'
+
+export interface LearningNote extends NoteTally {
+  streak: number
+}
+
+export interface LearningHistory {
+  unlocked: number
+  perNote: Record<number, LearningNote>
+}
+
 export type Theme = 'dark' | 'light'
 
 /** User-editable settings. The app is fully playable on these defaults (§5). */
@@ -121,6 +132,9 @@ export interface LifetimeStats {
 /** Observable game state consumed by the UI. */
 export interface GameState {
   phase: GamePhase
+  mode: GameMode
+  pool: MidiNote[]
+  level: number
   roundIndex: number // 0-based index of the current round
   totalRounds: number
   target: MidiNote | null

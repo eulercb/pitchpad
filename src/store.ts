@@ -2,8 +2,9 @@
 // (`pitchpad:v1`); reads are guarded and fall back to defaults on any corruption
 // or version mismatch, so bad storage can never break startup.
 import { create } from 'zustand'
+import { emptyLearning, sanitizeLearning } from './engine/learning'
 import { DEFAULT_SETTINGS, sanitizeSettings } from './engine/settings'
-import type { GameState, LifetimeStats, NoteTally, Settings } from './engine/types'
+import type { GameState, LearningHistory, LifetimeStats, NoteTally, Settings } from './engine/types'
 
 const STORAGE_KEY = 'pitchpad:v1'
 const SCHEMA_VERSION = 1
@@ -11,6 +12,8 @@ const SCHEMA_VERSION = 1
 interface Persisted {
   schemaVersion: number
   settings: Settings
+  challengeBest: number
+  learning: LearningHistory
   bestStreak: number
   lifetimeStats: LifetimeStats
 }
@@ -43,8 +46,11 @@ function sanitizeLifetime(input: unknown): LifetimeStats {
   }
 }
 
-function load(): { settings: Settings; bestStreak: number; lifetimeStats: LifetimeStats } {
+function load(): Persisted {
   const fallback = {
+    schemaVersion: SCHEMA_VERSION,
+    challengeBest: 0,
+    learning: emptyLearning(),
     settings: DEFAULT_SETTINGS,
     bestStreak: 0,
     lifetimeStats: emptyLifetime(),
@@ -56,6 +62,10 @@ function load(): { settings: Settings; bestStreak: number; lifetimeStats: Lifeti
     const parsed = JSON.parse(raw) as Partial<Persisted>
     if (!parsed || parsed.schemaVersion !== SCHEMA_VERSION) return fallback
     return {
+      schemaVersion: SCHEMA_VERSION,
+      challengeBest: typeof parsed.challengeBest === 'number' && Number.isFinite(parsed.challengeBest)
+        ? Math.max(0, Math.floor(parsed.challengeBest)) : 0,
+      learning: sanitizeLearning(parsed.learning),
       settings: sanitizeSettings(parsed.settings),
       bestStreak: Math.max(0, Math.floor(Number(parsed.bestStreak) || 0)),
       lifetimeStats: sanitizeLifetime(parsed.lifetimeStats),
@@ -65,7 +75,7 @@ function load(): { settings: Settings; bestStreak: number; lifetimeStats: Lifeti
   }
 }
 
-function save(state: { settings: Settings; bestStreak: number; lifetimeStats: LifetimeStats }): void {
+function save(state: Omit<Persisted, 'schemaVersion'>): void {
   try {
     if (typeof localStorage === 'undefined') return
     const payload: Persisted = { schemaVersion: SCHEMA_VERSION, ...state }
@@ -76,7 +86,13 @@ function save(state: { settings: Settings; bestStreak: number; lifetimeStats: Li
 }
 
 export interface StoreState {
+  inputMode: 'piano' | 'screen'
+  setInputMode: (mode: 'piano' | 'screen') => void
+  setLearning: (history: LearningHistory) => void
+  recordChallengeScore: (score: number) => void
   settings: Settings
+  challengeBest: number
+  learning: LearningHistory
   bestStreak: number
   lifetimeStats: LifetimeStats
   updateSettings: (patch: Partial<Settings>) => void
@@ -88,6 +104,12 @@ export interface StoreState {
 const initial = load()
 
 export const useStore = create<StoreState>((set) => ({
+  inputMode: 'piano',
+  setInputMode: (inputMode) => set({ inputMode }),
+  challengeBest: initial.challengeBest,
+  learning: initial.learning,
+  setLearning: (learning) => set({ learning }),
+  recordChallengeScore: (score) => set((s) => ({ challengeBest: Math.max(s.challengeBest, score) })),
   settings: initial.settings,
   bestStreak: initial.bestStreak,
   lifetimeStats: initial.lifetimeStats,
@@ -108,6 +130,7 @@ export const useStore = create<StoreState>((set) => ({
       }
       const firstTry = game.results.filter((r) => r.correct && r.firstTry).length
       return {
+        challengeBest: game.mode === 'challenge' ? Math.max(s.challengeBest, game.score) : s.challengeBest,
         bestStreak: Math.max(s.bestStreak, game.bestStreak),
         lifetimeStats: {
           sessionsPlayed: s.lifetimeStats.sessionsPlayed + 1,
@@ -118,10 +141,10 @@ export const useStore = create<StoreState>((set) => ({
       }
     }),
 
-  resetStats: () => set({ bestStreak: 0, lifetimeStats: emptyLifetime() }),
+  resetStats: () => set({ bestStreak: 0, challengeBest: 0, learning: emptyLearning(), lifetimeStats: emptyLifetime() }),
 }))
 
 // Persist any change to the slices we care about.
 useStore.subscribe((s) =>
-  save({ settings: s.settings, bestStreak: s.bestStreak, lifetimeStats: s.lifetimeStats }),
+  save({ settings: s.settings, bestStreak: s.bestStreak, lifetimeStats: s.lifetimeStats, challengeBest: s.challengeBest, learning: s.learning }),
 )

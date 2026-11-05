@@ -1,4 +1,5 @@
 import { useGame } from '../hooks/useGame'
+import { useStore } from '../store'
 import { game } from '../runtime'
 import { noteName } from '../engine/notes'
 import type { GameState } from '../engine/types'
@@ -25,26 +26,35 @@ function BigStat({ value, label }: { value: string; label: string }) {
 
 export function SessionSummary() {
   const g = useGame()
+  const challengeBest = useStore((s) => s.challengeBest)
+  const learning = useStore((s) => s.learning)
+  const challenge = g.mode === 'challenge'
   const total = g.results.length || g.totalRounds
   const firstTry = g.results.filter((r) => r.correct && r.firstTry).length
   const accuracy = total > 0 ? Math.round((firstTry / total) * 100) : 0
   const weak = weakestNotes(g)
 
   return (
-    <main className="anim-settle-in flex min-h-full flex-col items-center justify-center gap-9 px-8 text-center">
+    <main className="anim-settle-in flex min-h-0 flex-1 flex-col items-center justify-center gap-6 overflow-y-auto px-6 py-6 text-center">
       <div>
-        <p className="label-caps text-xs text-[color:var(--color-muted)]">Session complete</p>
-        <p className="mt-2 font-display text-4xl">
-          {firstTry}/{total} on the first try
+        <p className="label-caps text-xs text-[color:var(--color-muted)]">{challenge ? 'Challenge over' : g.mode === 'learning' ? 'Learning session complete' : 'Session complete'}</p>
+        <p className="mt-2 font-display text-3xl">
+          {challenge ? `${g.score} correct before the first miss` : `${firstTry}/${total} on the first try`}
         </p>
       </div>
 
       <div className="flex items-start justify-center gap-10">
         <BigStat value={`${accuracy}%`} label="Accuracy" />
-        <BigStat value={String(g.bestStreak)} label="Best streak" />
+        <BigStat value={String(challenge ? challengeBest : g.bestStreak)} label={challenge ? "Best score" : "Best streak"} />
       </div>
 
       <div className="max-w-xs text-sm text-[color:var(--color-muted)]">
+        {challenge && g.lastResult && <p className="mb-3">
+          You played {g.lastResult.answered != null ? noteName(g.lastResult.answered) : 'no note'};
+          the target was {noteName(g.lastResult.target)}.
+        </p>}
+        {g.mode === 'learning' && <p className="mb-3">Progress saved · step {learning.unlocked - 2}.
+          Keep reinforcing your notes to unlock the next one.</p>}
         {weak.length === 0 ? (
           <p>Clean run — nothing tripped you up. Nice ear.</p>
         ) : (
