@@ -58,6 +58,9 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff,woff2}'],
+        // PR previews share the production origin but must load their own HTML.
+        // Otherwise an installed root worker serves the cached production app.
+        navigateFallbackDenylist: [/^\/pr-preview(?:\/|$)/],
         // The fallback synth samples are large and lazy — runtime-cache them
         // only if/when the user turns on in-app sound, never in the precache.
         runtimeCaching: [
