@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "PitchPad \u2014 an ear-training PWA that plays notes on your own MIDI piano and listens back.",
+  "description": "PitchPad — an ear-training PWA that plays notes on your own MIDI piano and listens back.",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
